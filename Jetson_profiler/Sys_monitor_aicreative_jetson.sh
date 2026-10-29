@@ -1,55 +1,36 @@
 #!/bin/bash
 
-##############################################
-# Systemmonitor:
-# CPU, RAM, GPU und Netzwerk
-##############################################
-
-# Speicherort
 OUTPUT_DIR="$HOME/Systemmonitor"
 mkdir -p "$OUTPUT_DIR"
-
 DATE=$(date +"%Y-%m-%d")
-OUTPUT_FILE="$OUTPUT_DIR/Systemmonitor_$DATE.csv"
+OUTPUT_FILE="$OUTPUT_DIR/Systemmonitor_Jetson_$DATE.csv"
 
-# CSV-Kopf erzeugen #
+START_MIN=$((8*60))
+END_MIN=$((20*60))    
+
 if [ ! -f "$OUTPUT_FILE" ]; then
-    echo "Zeit;CPU[%];RAM[%];GPU[%];RX_Bytes;TX_Bytes" > "$OUTPUT_FILE"
+    echo "Zeit;CPU[%];RAM_MB;GPU[%];GPU_TEMP_C" > "$OUTPUT_FILE"
 fi
 
-while [ "$(date +%H%M)" -lt 2000 ]
-do
+get_current_min() {
+    echo $(( 10#$(date +%H) * 60 + 10#$(date +%M) ))
+}
 
-    HOUR=$(date +%H)
+tegrastats --interval 200 | while read -r line; do
+    NOW_MIN=$(get_current_min)
 
-        # Zeit
-        TIME=$(date +"%H:%M:%S")
+    if [ "$NOW_MIN" -ge "$END_MIN" ] || [ "$NOW_MIN" -lt "$START_MIN" ]; then
+        break
+    fi
 
-        # CPU-Auslastung
-        CPU=$(top -bn1 | grep "Cpu(s)" | awk '{print 100-$8}' | cut -d'.' -f1)
+    TIME=$(date +"%H:%M:%S.%3N")
 
-        # RAM-Auslastung aus /proc/meminfo
-        RAM=$(awk '/MemTotal/ {total=$2} /MemAvailable/ {avail=$2} END {if(total>0) printf("%.0f", (total-avail)/total*100); else print "0"}' /proc/meminfo)
+    CPU=$(echo "$line" | grep -o 'CPU \[[^]]*\]' | grep -o '[0-9]\+%' | tr -d '%' | awk '{sum+=$1; count++} END {if (count>0) print sum/count; else print 0}')
+    RAM_MB=$(echo "$line" | grep -o 'RAM [0-9]\+/[0-9]\+MB' | grep -o '[0-9]\+' | head -n1)
+    GPU_UTIL=$(echo "$line" | grep -o 'GR3D_FREQ [0-9]\+%' | grep -o '[0-9]\+' | head -n1)
+    [ -z "$GPU_UTIL" ] && GPU_UTIL=0
+    GPU_TEMP=$(echo "$line" | grep -o 'gpu@[0-9.]\+C' | grep -o '[0-9.]\+')
+    [ -z "$GPU_TEMP" ] && GPU_TEMP=0
 
-        # GPU-Auslastung (NVIDIA)
-        if command -v tegrastats &> /dev/null
-        then
-            GPU=$(timeout 2 tegrastats --interval 1000 \
-            | grep -o 'GR3D_FREQ [0-9]\+%' \
-            | grep -o '[0-9]\+')
-        else
-            GPU="NA"
-        fi
-
-        # Netzwerkinterface auslesen
-        INTERFACE=$(ip route | awk '/default/ {print $5}' | head -n1)
-
-        RX=$(cat /sys/class/net/$INTERFACE/statistics/rx_bytes) #Empfangen
-        TX=$(cat /sys/class/net/$INTERFACE/statistics/tx_bytes) #Gesendet
-
-        echo "$TIME;$CPU;$RAM;$GPU;$RX;$TX" >> "$OUTPUT_FILE"
-
-    # Messintervall alle 10 sekunden
-    sleep 10
-
+    echo "$TIME;$CPU;$RAM_MB;$GPU_UTIL;$GPU_TEMP" >> "$OUTPUT_FILE"
 done
