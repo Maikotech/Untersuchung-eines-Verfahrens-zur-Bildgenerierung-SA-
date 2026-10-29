@@ -6,6 +6,8 @@ from PIL import Image
 # from transformers import DPTFeatureExtractor, DPTForDepthEstimation
 from diffusers import ControlNetModel, StableDiffusionXLControlNetPipeline, AutoencoderKL, StableDiffusionControlNetPipeline, StableDiffusion3ControlNetPipeline, SD3ControlNetModel
 from flask import Flask, request, jsonify
+import time
+
 
 app = Flask(__name__)
 
@@ -15,9 +17,13 @@ controlnet = ControlNetModel.from_pretrained(
     local_files_only=True,
     variant="fp16",
     use_safetensors=True,
-    torch_dtype=torch.float16,
+    torch_dtype=torch.float32
 ).to("cuda")
-vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix", local_files_only=True, torch_dtype=torch.float32).to("cuda")
+vae = AutoencoderKL.from_pretrained(
+    "madebyollin/sdxl-vae-fp16-fix", 
+    local_files_only=True, 
+    torch_dtype=torch.float32
+    ).to("cuda")
 pipe = StableDiffusionXLControlNetPipeline.from_pretrained(
     "stabilityai/stable-diffusion-xl-base-1.0",
     controlnet=controlnet,
@@ -25,7 +31,7 @@ pipe = StableDiffusionXLControlNetPipeline.from_pretrained(
     vae=vae,
     variant="fp16",
     use_safetensors=True,
-    torch_dtype=torch.float16,
+    torch_dtype=torch.float32
 ).to("cuda")
 
 
@@ -50,7 +56,21 @@ def predict():
     prompt = request.form.get('prompt')
     print("Prompt: ", prompt)
     negative_prompt = "blurry, low quality, low resolution,  distorted, deformed, unrealistic depth, cropped, warped geometry, cartoon, anime, sketch, text, watermark, logo, signature, unrealistic shapes"
-    gen_image = pipe(prompt=prompt, image=input_tensor, guess_mode=False, controlnet_conditioning_scale=0.7, negative_prompt=negative_prompt, num_inference_steps=20).images[0]
+
+
+    # Inferenzzeit Messung
+    torch.cuda.synchronize("cuda")
+    start_ns = time.perf_counter_ns()
+    
+    # Bildgenerierung
+    gen_image = pipe(
+        prompt=prompt, image=input_tensor, guess_mode=False, 
+        controlnet_conditioning_scale=0.7, negative_prompt=negative_prompt, 
+        num_inference_steps=20).images[0]
+    torch.cuda.synchronize("cuda")
+    inference_time = (time.perf_counter_ns() - start_ns) / 1_000_000
+    end_ns = time.perf_counter_ns()
+    print(f"Inference Time: {inference_time} ms")
 
     buffered = io.BytesIO()
     gen_image.save(buffered, format="PNG")
@@ -60,3 +80,11 @@ def predict():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
+"""
+Prompts (Schnittstelle aus der UI):
+- "A futuristic vision of the world of tomorrow, blending advanced technology with striking architecture, seamless integration of nature and innovation, atmosphere of progress and wonder, highly detailed, cinematic, ultra-realistic, concept art style."
+- "high-quality pixel art, retro video game environment, 2D sprite-based graphics, pixelated edges, limited color palette, flat colors, tile-based level design, simple geometric shapes, crisp pixels, 16-bit aesthetic"
+- "Ultra-realistic natural landscape from aerial view, highly detailed textures, mountains, fields, lakes, forests, historic buildings. Natural colors, cinematic lighting, realistic shadows, photorealistic, wide perspective."
+
+"""
