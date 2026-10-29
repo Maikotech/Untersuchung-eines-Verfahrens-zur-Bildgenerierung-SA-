@@ -1,0 +1,18 @@
+top - 22:20:23 up  9:15,  3 users,  load average: 0,35, 0,25, 0,20
+Tasks: 398 total,   1 running, 397 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  5,4 us,  3,4 sy,  0,0 ni, 91,2 id,  0,0 wa,  0,1 hi,  0,0 si,  0,0 st
+MiB Mem :  62840,8 total,  40750,9 free,  13087,7 used,   9002,2 buff/cache
+MiB Swap:  31420,4 total,  31420,4 free,      0,0 used.  49104,6 avail Mem
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   1232 lab-mud   20   0   70,7g   2,7g 298860 S  99,3   4,4  47:07.63 python3
+2868839 lab-mud   20   0   11436   4592   3012 S   2,0   0,0   0:04.59 htop
+   1326 lab-mud   20   0    2848    884    788 S   1,0   0,0   7:14.97 tegrastats
+2868880 lab-mud   20   0   13164   3688   2828 R   0,7   0,0   0:01.22 top
+     40 root      20   0       0      0      0 S   0,3   0,0   0:00.19 ksoftirqd/5
+    187 root     -51   0       0      0      0 S   0,3   0,0   0:26.45 irq/178-c240000
+    396 root      20   0   23604   6808   4536 S   0,3   0,0   2:09.07 systemd-udevd
+    888 root      rt   0       0      0      0 S   0,3   0,0   5:39.33 sugov:0
+
+
+---------------------------------------------------------------------------------------
